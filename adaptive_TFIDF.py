@@ -5,16 +5,23 @@ import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
+from tokenize_cpp import tokenize_cpp_code
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 # Load data (assumes a CSV file with 'cve_description', 'commit_msg', 'commit_diff', 'is_patch' columns)
-data = pd.read_csv("your_data.csv")
+data = pd.read_csv("commit_info.csv")
+data = data.drop(columns=['commit_id', 'cve', 'owner', 'repo'], axis=1)
+reduce_memusage(data)
 
 # Tokenization
 desc_tokens = data['cve_desc'].apply(nltk.word_tokenize)
 msg_tokens = data['msg'].apply(nltk.word_tokenize)
 
 # Note: You should implement a proper tokenization for diffs using ANTLR
-diff_tokens = data['diff'].apply(lambda x: antlr4.Lexer(x)) # Modify as per ANTLR specifics
+diff_tokens = data['diff'].apply(tokenize_cpp_code)
 
 # Combine commit messages and diffs
 data['combined'] = msg_tokens + " " + diff_tokens
@@ -27,10 +34,8 @@ tfidf_scores = vectorizer.fit_transform(data['combined'].astype('str'))
 positions = []
 scores = []
 
-for index, row in data.iterrows():
-    if row['is_patch']:
-        positions.append(index)
-    scores.append(tfidf_scores[index])
+### get all the positions of the patches
+positions = data[data['label'] == 1].index.tolist()
 
 # Convert positions and scores to numpy arrays
 positions = np.array(positions)
@@ -40,9 +45,6 @@ scores = np.array(scores)
 X_train, X_test, y_train, y_test = train_test_split(scores, positions, test_size=0.2)
 
 # Step 3: Train the Logistic Regression Model
-import torch
-import torch.nn as nn
-import torch.optim as optim
 
 n = X_train.shape[1] # number of features, in this case, tf-idf scores
 
