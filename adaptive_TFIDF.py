@@ -7,7 +7,18 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tokenize_cpp_code import tokenize_cpp_code
 from utils import reduce_mem_usage
 
-DATA_DIR = '/mnt/local/Baselines_Bugs/CodeBert/data/'
+nltk.download('punkt')
+
+DATA_DIR = '/data/kaixuan/ramdisk/data'
+
+# scp -P 32908 kaixuan_cuda11@XXXXXX:/mnt/local/Baselines_Bugs/CodeBert/data/cve_desc.csv ./data/
+
+# sudo mkdir -p /data/kaixuan/ramdisk
+# sudo mount -t tmpfs -o size=110G tmpfs /data/kaixuan/ramdisk
+# mv ./data /data/kaixuan/ramdisk/
+
+# sync
+# sudo umount /data/kaixuan/ramdisk
 
 # Load data
 # commit_data = pd.read_csv(os.path.join(DATA_DIR, 'commit_sample.csv')) ### for test
