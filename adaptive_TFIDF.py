@@ -1,3 +1,4 @@
+import nltk
 import numpy as np
 import os
 import pandas as pd
@@ -10,7 +11,6 @@ DATA_DIR = '/mnt/local/Baselines_Bugs/CodeBert/data/'
 
 # Load data
 commit_data = pd.read_csv(os.path.join(DATA_DIR, 'commit_info.csv')).head(100)
-reduce_mem_usage(commit_data) ## Reduce memory usage, since commit_info.csv is large (90G)
 desc_data = pd.read_csv(os.path.join(DATA_DIR, 'cve_desc.csv'))
 
 # Merge commit_data and desc_data on 'cve' column
@@ -19,12 +19,17 @@ data = pd.merge(commit_data, desc_data, on='cve', how='left')
 # Reduce memory usage
 reduce_mem_usage(data)
 
-# Combine commit messages and diffs
-data['combined'] = data['msg'] + " " + data['diff'].apply(tokenize_cpp_code).apply(' '.join)
+# Tokenization
+data['desc_token'] = data['cve_desc'].apply(nltk.word_tokenize).apply(' '.join)
+data['msg_token'] = data['msg'].apply(nltk.word_tokenize).apply(' '.join)
+data['diff_token'] = data['diff'].apply(tokenize_cpp_code).apply(' '.join) 
 
-# Compute TF-IDF vectors for cve_desc and combined info
+# Combine tokenized commit messages and diffs
+data['combined'] = data['msg_token'] + " " + data['diff_token']
+
+# Compute TF-IDF vectors for tokenized cve_desc and combined info
 vectorizer = TfidfVectorizer()
-desc_tfidf = vectorizer.fit_transform(data['cve_desc'])
+desc_tfidf = vectorizer.fit_transform(data['desc_token'])
 combined_tfidf = vectorizer.transform(data['combined'])
 
 # Calculate the similarity for each row
