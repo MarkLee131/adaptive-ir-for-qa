@@ -34,16 +34,26 @@ data = pd.merge(commit_data, desc_data, on='cve', how='left')
 reduce_mem_usage(data)
 
 # Tokenization
+print("Tokenizing...")
 data['desc_token'] = data['cve_desc'].apply(nltk.word_tokenize).apply(' '.join)
+print("Tokenized CVE descriptions")
+data = data.drop(columns=['cve_desc'])
 data['msg_token'] = data['msg'].apply(nltk.word_tokenize).apply(' '.join)
+print("Tokenized commit messages")
+data['diff'] = data.drop(columns=['msg'])
+
 data['diff_token'] = data['diff'].apply(tokenize_cpp_code).apply(' '.join)
+print("Tokenized diffs")
+data = data.drop(columns=['diff'])
 
 # Combine tokenized commit messages and diffs
+print("Combining tokenized commit messages and diffs...")
 data['combined'] = data['msg_token'] + " " + data['diff_token']
 
 # Compute TF-IDF vectors
 vectorizer = TfidfVectorizer()
 
+print("Computing TF-IDF vectors...")
 similarity_scores = []
 for _, row in tqdm(data.iterrows(), total=data.shape[0]):
     vectorizer.fit([row['desc_token'], row['combined']])
