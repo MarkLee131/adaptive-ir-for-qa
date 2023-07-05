@@ -15,3 +15,16 @@ def tokenize_cpp_code(code):
             tokens.append(token.text)
     
     return tokens
+
+if __name__ == "__main__":
+    code = """
+    #include <iostream>
+    using namespace std;
+    
+    int main() {
+        cout << "Hello World!";
+        return 0;
+    }
+    """
+    result = ''.join(tokenize_cpp_code(code))
+    print(result)
