@@ -1,72 +1,46 @@
-# Step 1: Data Preparation
-import nltk
-import antlr4 # you need to have antlr python runtime
 import numpy as np
+import os
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.model_selection import train_test_split
-from tokenize_cpp import tokenize_cpp_code
+from sklearn.metrics.pairwise import cosine_similarity
+from tokenize_cpp_code import tokenize_cpp_code
+from utils import reduce_mem_usage
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
+DATA_DIR = '/mnt/local/Baselines_Bugs/CodeBert/data/'
 
-# Load data (assumes a CSV file with 'cve_description', 'commit_msg', 'commit_diff', 'is_patch' columns)
-data = pd.read_csv("commit_info.csv")
-data = data.drop(columns=['commit_id', 'cve', 'owner', 'repo'], axis=1)
-reduce_memusage(data)
+# Load data
+commit_data = pd.read_csv(os.path.join(DATA_DIR, 'commit_info.csv')).head(100)
+reduce_mem_usage(commit_data) ## Reduce memory usage, since commit_info.csv is large (90G)
+desc_data = pd.read_csv(os.path.join(DATA_DIR, 'cve_desc.csv'))
 
-# Tokenization
-desc_tokens = data['cve_desc'].apply(nltk.word_tokenize)
-msg_tokens = data['msg'].apply(nltk.word_tokenize)
+# Merge commit_data and desc_data on 'cve' column
+data = pd.merge(commit_data, desc_data, on='cve', how='left')
 
-# Note: You should implement a proper tokenization for diffs using ANTLR
-diff_tokens = data['diff'].apply(tokenize_cpp_code)
+# Reduce memory usage
+reduce_mem_usage(data)
 
 # Combine commit messages and diffs
-data['combined'] = msg_tokens + " " + diff_tokens
+data['combined'] = data['msg'] + " " + data['diff'].apply(tokenize_cpp_code).apply(' '.join)
 
-# Compute initial scores using TF-IDF
+# Compute TF-IDF vectors for cve_desc and combined info
 vectorizer = TfidfVectorizer()
-tfidf_scores = vectorizer.fit_transform(data['combined'].astype('str'))
+desc_tfidf = vectorizer.fit_transform(data['cve_desc'])
+combined_tfidf = vectorizer.transform(data['combined'])
 
-# Generate training data
-positions = []
-scores = []
+# Calculate the similarity for each row
+similarity_scores = cosine_similarity(desc_tfidf, combined_tfidf).diagonal()
 
-### get all the positions of the patches
-positions = data[data['label'] == 1].index.tolist()
+# Save the required information in a CSV file
+similarity_data = pd.DataFrame()
+similarity_data['cve'] = data['cve']
+similarity_data['owner'] = data['owner']
+similarity_data['repo'] = data['repo']
+similarity_data['commit_id'] = data['commit_id']
+similarity_data['similarity'] = similarity_scores
+similarity_data['label'] = data['label']
 
-# Convert positions and scores to numpy arrays
-positions = np.array(positions)
-scores = np.array(scores)
+# Sort by CVE
+similarity_data = similarity_data.sort_values(by=['cve'])
 
-# Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(scores, positions, test_size=0.2)
-
-# Step 3: Train the Logistic Regression Model
-
-n = X_train.shape[1] # number of features, in this case, tf-idf scores
-
-model = nn.Linear(n, 1)
-criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01)
-
-# Training loop
-for epoch in range(100):
-    optimizer.zero_grad()
-    outputs = model(torch.tensor(X_train, dtype=torch.float32))
-    loss = criterion(outputs, torch.tensor(y_train, dtype=torch.float32))
-    loss.backward()
-    optimizer.step()
-
-# Step 4: Implement the Trained Model for Adaptive Retrieval
-def adaptive_retrieval(cve_description, model, tfidf_vectorizer):
-    # Tokenize and vectorize the query (cve_description)
-    # Use the model to predict the number of top commits to retrieve
-    # Retrieve the top commits
-    # Return the commits
-    pass
-
-# Step 5: Evaluate the Model
-# Use the test data to evaluate the model's performance.
+# Save to CSV
+similarity_data.to_csv(os.path.join(DATA_DIR, 'similarity_data.csv'), index=False)
