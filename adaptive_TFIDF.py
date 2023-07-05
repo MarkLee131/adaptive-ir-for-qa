@@ -6,6 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from tokenize_cpp_code import tokenize_cpp_code
 from utils import reduce_mem_usage
+from tqdm import tqdm
 
 nltk.download('punkt')
 
@@ -44,7 +45,7 @@ data['combined'] = data['msg_token'] + " " + data['diff_token']
 vectorizer = TfidfVectorizer()
 
 similarity_scores = []
-for _, row in data.iterrows():
+for _, row in tqdm(data.iterrows(), total=data.shape[0]):
     vectorizer.fit([row['desc_token'], row['combined']])
     desc_tfidf = vectorizer.transform([row['desc_token']])
     combined_tfidf = vectorizer.transform([row['combined']])
