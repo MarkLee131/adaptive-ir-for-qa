@@ -99,9 +99,9 @@ if __name__ == '__main__':
     reduce_mem_usage(diff_df)
     diff_df['diff_token'] = diff_df['diff_token'].fillna(' ') # replace NaN values with a space
 
-    print("shape of desc_df: ", desc_df.shape)
-    print("shape of msg_df: ", msg_df.shape)
-    print("shape of diff_df: ", diff_df.shape)
+    # print("shape of desc_df: ", desc_df.shape)
+    # print("shape of msg_df: ", msg_df.shape)
+    # print("shape of diff_df: ", diff_df.shape)
 
     ### concat the tokenized data
 

@@ -30,16 +30,12 @@ data = data.drop(columns=['cve_desc', 'msg', 'diff'])
 del commit_data, desc_data
 gc.collect()
 
-data_group = data.groupby('cve')
 
 print("shape of data: ", data.shape)
 print("shape of similarity_scores: ", similarity_scores.shape)
 
-# Reset the index of data (to ensure it starts from 0)
-data.reset_index(drop=True, inplace=True)
+data_group = data.groupby('cve')
 
-# Add similarity scores to data
-data['similarity'] = similarity_scores.values
-
-# Save the data to csv
-data.to_csv(os.path.join(DATA_TMP_DIR, 'data_group.csv'), index=False)
+for cve, group in data_group:
+    print("cve: ", cve)
+    print("group shape: ", group.shape)
