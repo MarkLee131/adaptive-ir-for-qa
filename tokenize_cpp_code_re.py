@@ -1,5 +1,5 @@
 import re
-
+import ast
 def tokenize_cpp_code(code):
     # Remove newline characters
     code = code.replace('\n', '')
@@ -20,7 +20,7 @@ def tokenize_cpp_code(code):
     # Filter out whitespace tokens
     tokens = [token for token in tokens if token.strip() != '']
 
-    return tokens
+    return ' '.join(tokens)
 
 if __name__ == "__main__":
     code = """
@@ -32,5 +32,6 @@ if __name__ == "__main__":
         return 0;
     }
     """
-    result = ''.join(tokenize_cpp_code(code))
+    result = tokenize_cpp_code(code)
     print(result)
+    

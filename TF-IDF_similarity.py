@@ -7,14 +7,16 @@ from sklearn.metrics.pairwise import cosine_similarity
 from utils import reduce_mem_usage
 from tqdm import tqdm
 import gc
-# import multiprocessing as mp
-import ast
+import multiprocessing as mp
+from tqdm import tqdm
 nltk.download('punkt')
 
 ##### 2023.07.07 
 ##### This script is revised from TFIDF_similarity_old.py
 ##### We changed the logic to first save the tokenized data to csv files, and then load them to save memory.
 
+##### 2023.07.09
+##### We try to paralellize the process of calculating similarity scores, since the single process is too slow (17hs).
 
 DATA_DIR = '/data/kaixuan/ramdisk/data'
 DATA_TMP_DIR = '/data/kaixuan/data_tmp'
@@ -30,38 +32,41 @@ DATA_TMP_DIR = '/data/kaixuan/data_tmp'
 
 
 
-# def compute_similarity(group, cve):
-#     vectorizer = TfidfVectorizer()
+def compute_similarity(args):
+    vectorizer = TfidfVectorizer()
+    group, cve = args
 
-#     similarity_scores = []
-#     try:
-#         vectorizer.fit(group['combined'])
-#     except Exception as e:
-#         print("Error: ", e, "cve: ", cve)
-#         group['combined'].fillna('', inplace=True)
-#         vectorizer.fit(group['combined'])
+    try:
+        vectorizer.fit(group['combined'])
+    except Exception as e:
+        group['combined'].fillna('', inplace=True)
+        vectorizer.fit(group['combined'])
 
-#     for _, row in group.iterrows():
-#         desc_tfidf = vectorizer.transform([row['desc_token']])
-#         combined_tfidf = vectorizer.transform([row['combined']])
-#         similarity_scores.append(cosine_similarity(desc_tfidf, combined_tfidf).diagonal()[0])
+    similarity_scores = []
+    for _, row in group.iterrows():
+        desc_tfidf = vectorizer.transform([row['desc_token']])
+        combined_tfidf = vectorizer.transform([row['combined']])
+        similarity = cosine_similarity(desc_tfidf, combined_tfidf).diagonal()[0]
+        similarity_scores.append(similarity)
 
-#     similarity_data = pd.DataFrame()
-#     similarity_data['cve'] = group['cve']
-#     similarity_data['owner'] = group['owner']
-#     similarity_data['repo'] = group['repo']
-#     similarity_data['commit_id'] = group['commit_id']
-#     similarity_data['similarity'] = np.array(similarity_scores)
-#     similarity_data['label'] = group['label']
+    similarity_data = pd.DataFrame()
+    similarity_data['cve'] = group['cve']
+    similarity_data['owner'] = group['owner']
+    similarity_data['repo'] = group['repo']
+    similarity_data['commit_id'] = group['commit_id']
+    similarity_data['similarity'] = similarity_scores
+    similarity_data['label'] = group['label']
 
-#     # Sort by similarity score in descending order
-#     similarity_data = similarity_data.sort_values(by=['similarity'], ascending=False)
-
-#     # Append to CSV
-#     similarity_data.to_csv(os.path.join(DATA_DIR, 'similarity_data.csv'), mode='a', header=False, index=False)
+    # Append to CSV
+    similarity_data.to_csv(os.path.join(DATA_DIR, 'similarity_data_1.csv'), mode='a', header=False, index=False)
 
 
 if __name__ == '__main__':
+    
+    # Create and write the header of the CSV file
+    empty_df = pd.DataFrame(columns=['cve', 'owner', 'repo', 'commit_id', 'similarity', 'label'])
+    empty_df.to_csv(os.path.join(DATA_DIR, 'similarity_data_1.csv'), index=False)
+
 
     # Load data
     # commit_data = pd.read_csv(os.path.join(DATA_DIR, 'commit_sample.csv')) ### for test
@@ -79,19 +84,20 @@ if __name__ == '__main__':
 
     del commit_data, desc_data
     gc.collect()
+    
     ### load the tokenized data
-
     print("Loading tokenized data...")
     desc_df = pd.read_csv(os.path.join(DATA_TMP_DIR, 'desc_token.csv'))
     reduce_mem_usage(desc_df)
+    desc_df['desc_token'] = desc_df['desc_token'].fillna(' ') # replace NaN values with a space
+    
     msg_df = pd.read_csv(os.path.join(DATA_TMP_DIR, 'msg_token.csv'))
     reduce_mem_usage(msg_df)
+    msg_df['msg_token'] = msg_df['msg_token'].fillna(' ') # replace NaN values with a space
+    
     diff_df = pd.read_csv(os.path.join(DATA_TMP_DIR, 'diff_token.csv'))
     reduce_mem_usage(diff_df)
     diff_df['diff_token'] = diff_df['diff_token'].fillna(' ') # replace NaN values with a space
-    diff_df['diff_token'] = diff_df['diff_token'].apply(lambda x: ' '.join(ast.literal_eval(x)) if not pd.isnull(x) else ' ')
-    diff_df.to_csv(os.path.join(DATA_TMP_DIR, 'diff_token_new.csv'), index=False)
-    print("finished processing diff_token_new.csv")
 
     print("shape of desc_df: ", desc_df.shape)
     print("shape of msg_df: ", msg_df.shape)
@@ -110,48 +116,16 @@ if __name__ == '__main__':
 
     data = pd.concat([data, desc_df['desc_token']], axis=1)
 
-
-    # Compute TF-IDF vectors
-    vectorizer = TfidfVectorizer()
-
-    print("Computing TF-IDF vectors...")
-    similarity_scores = []
-
-    ### 
+    
+    # Create a multiprocessing pool
+    pool = mp.Pool(mp.cpu_count())
+    
     data_cve = data.groupby('cve')
     cve_list = data['cve'].unique()
     print("len(cve_list): ", len(cve_list))
-    for cve, group in tqdm(data_cve, total=len(data_cve)):
-        try:
-            vectorizer.fit(group['combined'])
-        
-        except Exception as e:
-            print("Error: ", e, "cve: ", cve)
-            print("group['combined']: ", group['combined'], "shape: ", group['combined'].shape)
-            # Fill NaN values in 'combined' column with empty strings
-            group['combined'].fillna('', inplace=True)
-            vectorizer.fit(group['combined'])
-        
-        
-        for _, row in group.iterrows():
-            desc_tfidf = vectorizer.transform([row['desc_token']])
-            combined_tfidf = vectorizer.transform([row['combined']])
-            similarity_scores.append(cosine_similarity(desc_tfidf, combined_tfidf).diagonal()[0])
-
-    similarity_scores = np.array(similarity_scores)
-
-    # Save the required information in a CSV file
-    similarity_data = pd.DataFrame()
-    similarity_data['cve'] = data['cve']
-    similarity_data['owner'] = data['owner']
-    similarity_data['repo'] = data['repo']
-    similarity_data['commit_id'] = data['commit_id']
-    similarity_data['similarity'] = similarity_scores
-    similarity_data['label'] = data['label']
-
-    # Sort by similarity score in descending order
-    similarity_data = similarity_data.sort_values(by=['similarity'], ascending=False)
-
-    # Save to CSV
-    similarity_data.to_csv(os.path.join(DATA_DIR, 'similarity_data.csv'), index=False)
-    print("Saved similarity_data.csv to {}".format(os.path.join(DATA_TMP_DIR, 'similarity_data.csv')))
+    
+    # Process each chunk independently
+    print("Computing TF-IDF vectors...")
+    results = list(tqdm(pool.imap_unordered(compute_similarity, [(group, cve) for cve, group in data_cve]), total=len(cve_list), desc="Computing similarity scores"))
+    
+    print("Saved similarity_data_1.csv to {}".format(os.path.join(DATA_DIR, 'similarity_data_1.csv')))
