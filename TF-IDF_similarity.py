@@ -1,5 +1,5 @@
-import nltk
-import numpy as np
+# import nltk
+# import numpy as np
 import os
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -9,7 +9,7 @@ from tqdm import tqdm
 import gc
 import multiprocessing as mp
 from tqdm import tqdm
-nltk.download('punkt')
+# nltk.download('punkt')
 
 ##### 2023.07.07 
 ##### This script is revised from TFIDF_similarity_old.py
