@@ -65,7 +65,7 @@ if __name__ == '__main__':
     
     # Create and write the header of the CSV file
     empty_df = pd.DataFrame(columns=['cve', 'owner', 'repo', 'commit_id', 'similarity', 'label'])
-    empty_df.to_csv(os.path.join(DATA_DIR, 'similarity_data_1.csv'), index=False)
+    empty_df.to_csv(os.path.join(DATA_DIR, 'similarity_data.csv'), index=False)
 
 
     # Load data
@@ -128,4 +128,4 @@ if __name__ == '__main__':
     print("Computing TF-IDF vectors...")
     results = list(tqdm(pool.imap_unordered(compute_similarity, [(group, cve) for cve, group in data_cve]), total=len(cve_list), desc="Computing similarity scores"))
     
-    print("Saved similarity_data_1.csv to {}".format(os.path.join(DATA_DIR, 'similarity_data_1.csv')))
+    print("Saved similarity_data.csv to {}".format(os.path.join(DATA_DIR, 'similarity_data.csv')))
